@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+functions/node_modules/
+
+# Production build outputs
+dist/
+frontend/dist/
+functions/dist/
+
+# Firebase local caches and logs
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+
+# Temporary caches, archives, and scratch directories
+.scratch/
+.uploads/
+.vite/
+test/
+*.zip
+
+# Environment secrets (DO NOT COMMIT CREDENTIALS)
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Operating System & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

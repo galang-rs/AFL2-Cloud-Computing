@@ -1,0 +1,26 @@
+{
+  "name": "functions",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "test": "tsc --noEmit && tsx --test src/tests/*.test.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "firebase-admin": "^14.4.0",
+    "firebase-functions": "^7.4.0",
+    "hono": "^4.6.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.6.2"
+  }
+}
