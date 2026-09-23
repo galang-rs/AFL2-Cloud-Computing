@@ -1,23 +1,23 @@
 {
   "rules": {
     "email_index": {
-      ".read": true,
+      ".read": "now < 1791478800000",
       "$encodedEmail": {
-        ".write": true,
+        ".write": "now < 1791478800000",
         ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
       }
     },
     "registered_users": {
-      ".read": true,
+      ".read": "now < 1791478800000",
       "$encodedEmail": {
-        ".write": true
+        ".write": "now < 1791478800000"
       }
     },
     "users": {
       "$userId": {
         "profile": {
-          ".read": true,
-          ".write": true,
+          ".read": "now < 1791478800000",
+          ".write": "now < 1791478800000",
           ".validate": "newData.hasChildren(['email', 'role'])",
           "email": {
             ".validate": "newData.isString() && newData.val().contains('@')"
@@ -33,8 +33,8 @@
           }
         },
         "todos": {
-          ".read": true,
-          ".write": true,
+          ".read": "now < 1791478800000",
+          ".write": "now < 1791478800000",
           ".indexOn": ["priority", "completed", "category", "createdAt"],
           "$todoId": {
             ".validate": "newData.hasChildren(['title'])",
