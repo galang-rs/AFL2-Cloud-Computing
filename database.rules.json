@@ -1,6 +1,68 @@
 {
   "rules": {
-    ".read": true,
-    ".write": true
+    "email_index": {
+      ".read": true,
+      "$encodedEmail": {
+        ".write": true,
+        ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+      }
+    },
+    "registered_users": {
+      ".read": true,
+      "$encodedEmail": {
+        ".write": true
+      }
+    },
+    "users": {
+      "$userId": {
+        "profile": {
+          ".read": true,
+          ".write": true,
+          ".validate": "newData.hasChildren(['email', 'role'])",
+          "email": {
+            ".validate": "newData.isString() && newData.val().contains('@')"
+          },
+          "displayName": {
+            ".validate": "newData.isString() && newData.val().length <= 100"
+          },
+          "role": {
+            ".validate": "newData.val() == 'student' || newData.val() == 'dosen' || newData.val() == 'admin'"
+          },
+          "passwordHash": {
+            ".validate": "newData.isString()"
+          }
+        },
+        "todos": {
+          ".read": true,
+          ".write": true,
+          ".indexOn": ["priority", "completed", "category", "createdAt"],
+          "$todoId": {
+            ".validate": "newData.hasChildren(['title'])",
+            "title": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 255"
+            },
+            "description": {
+              ".validate": "!newData.exists() || newData.val() == null || (newData.isString() && newData.val().length <= 2000)"
+            },
+            "completed": {
+              ".validate": "!newData.exists() || newData.isBoolean()"
+            },
+            "priority": {
+              ".validate": "!newData.exists() || (newData.val() == 'urgent' || newData.val() == 'high' || newData.val() == 'medium' || newData.val() == 'low')"
+            },
+            "category": {
+              ".validate": "!newData.exists() || (newData.val() == 'academic' || newData.val() == 'work' || newData.val() == 'personal' || newData.val() == 'general')"
+            },
+            "color": {
+              ".validate": "!newData.exists() || (newData.val() == 'yellow' || newData.val() == 'amber' || newData.val() == 'emerald' || newData.val() == 'sky' || newData.val() == 'rose' || newData.val() == 'slate')"
+            }
+          }
+        }
+      }
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
   }
 }
