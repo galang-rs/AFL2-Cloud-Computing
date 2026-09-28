@@ -48,7 +48,7 @@
           <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
             <Flame class="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
             <Database class="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
-            <span>Firebase RTDB</span>
+            <span>{isRealtimeActive ? 'Firebase RTDB' : 'Offline'}</span>
           </span>
         </div>
         <span class="text-[10px] text-content-muted hidden sm:inline">

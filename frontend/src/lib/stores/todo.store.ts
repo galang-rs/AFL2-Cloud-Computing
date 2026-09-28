@@ -2,10 +2,7 @@ import { writable, derived } from 'svelte/store';
 import { apiService } from '../services/api.service';
 import {
   listenToUserTodos,
-  stopListeningToUserTodos,
-  createTodoInRtdb,
-  updateTodoInRtdb,
-  deleteTodoInRtdb
+  stopListeningToUserTodos
 } from '../firebase/client';
 import type {
   TodoItem,

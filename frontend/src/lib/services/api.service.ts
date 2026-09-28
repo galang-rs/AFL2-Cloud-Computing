@@ -30,7 +30,7 @@ export class ApiService {
         if (params.completed !== undefined) {
           todos = todos.filter((t) => t.completed === params.completed);
         }
-        if (params.priority && params.priority !== 'all') {
+        if (params.priority && (params.priority as string) !== 'all') {
           todos = todos.filter((t) => t.priority === params.priority);
         }
         if (params.search) {

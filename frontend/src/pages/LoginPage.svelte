@@ -21,8 +21,14 @@
     emailError = '';
     passwordError = '';
 
-    if (!email.trim()) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
       emailError = 'Email wajib diisi!';
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      emailError = 'Format alamat email tidak valid!';
       return;
     }
     if (!password) {
@@ -30,7 +36,7 @@
       return;
     }
 
-    await authStore.signIn(email.trim(), password);
+    await authStore.signIn(cleanEmail, password);
   }
 
   async function handleDemoLogin() {

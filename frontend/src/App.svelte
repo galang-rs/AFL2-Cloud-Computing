@@ -1,6 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { authStore, isAuthenticated, authLoading } from './lib/stores/auth.store';
+  import {
+    authStore,
+    isAuthenticated,
+    authLoading,
+    isEmailVerificationPending,
+  } from './lib/stores/auth.store';
   import { LoginPage, RegisterPage, DashboardPage } from './pages';
   import { Loader2 } from 'lucide-svelte';
 
@@ -31,10 +36,10 @@
     </div>
   </div>
 {:else if $isAuthenticated}
-  <!-- Authenticated Main Application Flow -->
+  <!-- Authenticated Main Application Flow (Email Verified) -->
   <DashboardPage />
-{:else if currentAuthRoute === 'register'}
-  <!-- Registration Flow -->
+{:else if currentAuthRoute === 'register' || $isEmailVerificationPending}
+  <!-- Registration & Official Firebase Email Verification Screen -->
   <RegisterPage onNavigateLogin={navigateToLogin} />
 {:else}
   <!-- Login Flow -->
