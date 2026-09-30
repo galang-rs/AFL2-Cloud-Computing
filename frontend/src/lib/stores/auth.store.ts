@@ -424,6 +424,13 @@ function createAuthStore() {
     },
 
     /**
+     * Reset Dosen tasks back to fresh 5 default tasks
+     */
+    resetDosenData: async (): Promise<boolean> => {
+      return await authService.resetDosenSeeder();
+    },
+
+    /**
      * Sign out current user
      */
     signOut: async (): Promise<void> => {

@@ -115,4 +115,22 @@ export class AuthController {
       message: result.message
     });
   };
+
+  public resetDosenData = async (c: Context<HonoEnv>): Promise<Response> => {
+    const service = this.getService(c);
+    const userRepo = new UserFirebaseRepository(
+      c.env?.FIREBASE_DATABASE_URL,
+      c.env?.FIREBASE_API_KEY
+    );
+    const dosenUser = await userRepo.findByEmail('dosen@ciputra.ac.id');
+    const targetUid = dosenUser?.id || 'dosen-afl2-evaluator';
+    await service.resetAndSeedDosenDummyData(targetUid);
+    if (targetUid !== 'dosen-afl2-evaluator') {
+      await service.resetAndSeedDosenDummyData('dosen-afl2-evaluator');
+    }
+    return c.json({
+      success: true,
+      message: 'Berhasil me-reset ulang data dummy Dosen ke 5 data awal.'
+    });
+  };
 }

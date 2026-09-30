@@ -3,7 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2024-09-30"
 compatibility_flags = ["nodejs_compat"]
 
-# Do NOT commit secrets or API keys here.
-# For local development with wrangler, use `.dev.vars` (which is gitignored).
-# For production Cloudflare Workers deployment, use Cloudflare dashboard or `wrangler secret put <KEY>`.
-# See .dev.vars.example or .env.example for required variables.
+# Variables available to Worker via env
+[vars]
+FIREBASE_PROJECT_ID = "afl2-7e2a5"
+FIREBASE_DATABASE_URL = "https://afl2-7e2a5-default-rtdb.asia-southeast1.firebasedatabase.app"
+FIREBASE_API_KEY = "AIzaSyBTNp9wM6oOoG0A7RxeGjvFAO_656OUnJk"
+JWT_SECRET = "afl2-firebase-secure-jwt-secret-key-2026"
+

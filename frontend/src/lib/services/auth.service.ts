@@ -1,4 +1,5 @@
 import type { UserProfile } from '../types/todo';
+import { seedDefaultTodosInRtdb } from '../firebase/client';
 
 const AUTH_STORAGE_KEY = 'afl2_auth_user';
 const AUTH_TOKEN_KEY = 'afl2_auth_token';
@@ -394,8 +395,33 @@ export class AuthService {
         const token = `mock:${userProfile.uid}:${email}:${name}`;
         this.saveSession(userProfile, token);
         this.notifyListeners(userProfile);
+        if (this.isDosenUser(email)) {
+          seedDefaultTodosInRtdb(userProfile.uid).catch(() => {});
+        }
         return { user: userProfile, token };
       }
+    }
+  }
+
+  /**
+   * Explicitly reset Dosen demo data via Cloudflare Worker backend
+   */
+  public async resetDosenSeeder(): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/reset-dosen`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      return Boolean(data && data.success);
+    } catch {
+      const user = this.getCurrentUser();
+      if (user && this.isDosenUser(user.email || '')) {
+        await seedDefaultTodosInRtdb(user.uid).catch(() => {});
+        await seedDefaultTodosInRtdb('dosen-afl2-evaluator').catch(() => {});
+        return true;
+      }
+      return false;
     }
   }
 

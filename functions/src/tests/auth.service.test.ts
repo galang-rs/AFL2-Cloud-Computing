@@ -198,3 +198,53 @@ test('4. AuthService - Login flow with password verification', async () => {
     (err: any) => err instanceof AppError && err.code === 'INVALID_CREDENTIALS'
   );
 });
+
+test('5. AuthService - Dosen evaluator login with password123 always resets and reseeds tasks', async () => {
+  const userRepo = new InMemoryUserRepository();
+  const todoRepo = new InMemoryTodoRepository();
+  const authService = new AuthService(userRepo, todoRepo);
+
+  // Pre-seed dosen user with plain-text 'password123' (mirroring RTDB live state)
+  await userRepo.create({
+    email: 'dosen@ciputra.ac.id',
+    passwordHash: 'password123',
+    displayName: 'Elizabeth Nathania Wintanto',
+    role: 'dosen',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  });
+
+  // Login with 'password123'
+  const res1 = await authService.login({
+    email: 'dosen@ciputra.ac.id',
+    password: 'password123'
+  });
+  assert.equal(res1.user.role, 'dosen');
+
+  const todos1 = await todoRepo.findAll(res1.user.uid);
+  assert.equal(todos1.length, 5, 'Must seed 5 initial tasks');
+
+  // Modify by adding a custom task
+  await todoRepo.create(res1.user.uid, {
+    userId: res1.user.uid,
+    title: 'Custom Task By Evaluator',
+    description: 'Testing reset',
+    completed: true,
+    priority: 'low',
+    category: 'academic',
+    color: 'sky',
+    dueDate: null,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  });
+  const todosModified = await todoRepo.findAll(res1.user.uid);
+  assert.equal(todosModified.length, 6);
+
+  // Login again with 'password123' - MUST RESET back to 5 tasks!
+  const res2 = await authService.login({
+    email: 'dosen@ciputra.ac.id',
+    password: 'password123'
+  });
+  const todosAfterReLogin = await todoRepo.findAll(res2.user.uid);
+  assert.equal(todosAfterReLogin.length, 5, 'Every Dosen login MUST wipe modifications and reset to 5 default tasks!');
+});

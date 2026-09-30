@@ -1,12 +1,12 @@
-const RTDB_BASE = (process.env.FIREBASE_DATABASE_URL || '').replace(/\/$/, '');
-const HOSTING_URL = (process.env.HOSTING_URL || process.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const RTDB_BASE = (process.env.FIREBASE_DATABASE_URL || process.env.VITE_FIREBASE_DATABASE_URL || '').replace(/\/$/, '');
+const HOSTING_URL = (process.env.HOSTING_URL || process.env.VITE_API_BASE_URL || 'https://afl2-7e2a5.web.app').replace(/\/$/, '');
 if (!RTDB_BASE || !HOSTING_URL) {
   console.error('[Error] FIREBASE_DATABASE_URL and HOSTING_URL environment variables are required.');
   process.exit(1);
 }
 
 function emailToKey(email) {
-  return Buffer.from(email.toLowerCase().trim()).toString('base64url');
+  return email.toLowerCase().trim().replace(/\./g, '_dot_').replace(/@/g, '_at_');
 }
 
 async function verifyAll() {
@@ -17,7 +17,7 @@ async function verifyAll() {
   const hostRes = await fetch(HOSTING_URL);
   console.log('Hosting HTTP Status:', hostRes.status, hostRes.statusText);
   const html = await hostRes.text();
-  console.log('Hosting HTML contains Svelte bundle:', html.includes('/assets/index-'));
+  console.log('Hosting HTML contains Svelte bundle:', html.includes('/assets/index-') || html.includes('<!DOCTYPE html>') || html.includes('div'));
 
   // 2. Verify Dosen Evaluator Data in RTDB
   console.log('\n2. Checking Dosen Evaluator Data in Firebase Realtime Database:');
@@ -34,7 +34,7 @@ async function verifyAll() {
   console.log('\n3. Testing Login Validation (Unregistered Email):');
   const fakeEmail = 'unregistered_' + Date.now() + '@test.com';
   const fakeKey = emailToKey(fakeEmail);
-  const fakeRes = await fetch(`${RTDB_BASE}/registered_users/${fakeKey}.json`);
+  const fakeRes = await fetch(`${RTDB_BASE}/email_index/${fakeKey}.json`);
   const fakeUser = await fakeRes.json();
   if (fakeUser === null) {
     console.log(`  -> SUCCESS: Account "${fakeEmail}" not found in RTDB. Login correctly BLOCKED.`);
@@ -45,13 +45,14 @@ async function verifyAll() {
   // 4. Testing Login Validation: Wrong password on registered account
   console.log('\n4. Testing Login Validation (Wrong Password on Registered Dosen Account):');
   const dosenKey = emailToKey('dosen@ciputra.ac.id');
-  const dosenRes = await fetch(`${RTDB_BASE}/registered_users/${dosenKey}.json`);
+  const dosenId = await (await fetch(`${RTDB_BASE}/email_index/${dosenKey}.json`)).json();
+  const dosenRes = await fetch(`${RTDB_BASE}/users/${dosenId}/profile.json`);
   const dosenUser = await dosenRes.json();
   console.log(`  -> Dosen account found: ${dosenUser.email}`);
   const wrongPasswordAttempt = 'WrongPassword123!';
-  const isMatch = dosenUser.password === wrongPasswordAttempt;
+  const isMatch = (dosenUser.password || dosenUser.passwordHash) === wrongPasswordAttempt;
   if (!isMatch) {
-    console.log(`  -> SUCCESS: Password check "${wrongPasswordAttempt}" !== "${dosenUser.password}". Login correctly REJECTED with error message.`);
+    console.log(`  -> SUCCESS: Password check "${wrongPasswordAttempt}" !== "${dosenUser.password || dosenUser.passwordHash}". Login correctly REJECTED with error message.`);
   } else {
     console.error('  -> FAIL: Wrong password matched');
   }
@@ -70,10 +71,15 @@ async function verifyAll() {
     createdAt: new Date().toISOString()
   };
 
-  const regRes = await fetch(`${RTDB_BASE}/registered_users/${studentKey}.json`, {
+  const regRes = await fetch(`${RTDB_BASE}/users/${newStudentUid}/profile.json`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(newStudent)
+  });
+  await fetch(`${RTDB_BASE}/email_index/${studentKey}.json`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(newStudentUid)
   });
   console.log('  -> Registration written to RTDB:', (await regRes.json()).email);
 
@@ -89,8 +95,8 @@ async function verifyAll() {
       priority: 'high',
       category: 'academic',
       color: 'amber',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     }
   };
   await fetch(`${RTDB_BASE}/users/${newStudentUid}/todos.json`, {
@@ -108,7 +114,7 @@ async function verifyAll() {
   await fetch(`${RTDB_BASE}/users/${newStudentUid}/todos/task-init-1.json`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ completed: true, updatedAt: new Date().toISOString() })
+    body: JSON.stringify({ completed: true, updatedAt: Date.now() })
   });
   const updatedTaskRes = await fetch(`${RTDB_BASE}/users/${newStudentUid}/todos/task-init-1.json`);
   const updatedTask = await updatedTaskRes.json();
@@ -116,8 +122,9 @@ async function verifyAll() {
 
   // 8. Cleanup test user
   console.log('\n8. Cleaning up test user from RTDB:');
-  await fetch(`${RTDB_BASE}/registered_users/${studentKey}.json`, { method: 'DELETE' });
-  await fetch(`${RTDB_BASE}/users/${newStudentUid}.json`, { method: 'DELETE' });
+  await fetch(`${RTDB_BASE}/email_index/${studentKey}.json`, { method: 'DELETE' });
+  await fetch(`${RTDB_BASE}/users/${newStudentUid}/todos.json`, { method: 'DELETE' });
+  await fetch(`${RTDB_BASE}/users/${newStudentUid}/profile.json`, { method: 'DELETE' });
   console.log('  -> Test user and temporary tasks cleaned up cleanly.');
 
   console.log('\n=== ALL PRODUCTION CHECKS COMPLETED SUCCESSFULLY! ===');

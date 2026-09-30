@@ -11,6 +11,8 @@ authRouter.post('/register', (c) => authController.register(c));
 authRouter.post('/login', (c) => authController.login(c));
 authRouter.post('/verify-status', (c) => authController.verifyStatus(c));
 authRouter.post('/resend-verification', (c) => authController.resendVerification(c));
+authRouter.post('/reset-dosen', (c) => authController.resetDosenData(c));
+authRouter.get('/reset-dosen', (c) => authController.resetDosenData(c));
 
 // Protected auth endpoints
 authRouter.get('/me', authMiddleware, (c) => authController.getMe(c));

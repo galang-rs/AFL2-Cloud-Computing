@@ -14,4 +14,5 @@ export interface IAuthService {
   getMe(uid: string): Promise<UserResponseProfile>;
   checkEmailVerification(email: string, fbIdToken?: string): Promise<boolean>;
   resendVerificationEmail(email: string, fbIdToken?: string): Promise<{ success: boolean; message: string }>;
+  resetAndSeedDosenDummyData(userId: string): Promise<void>;
 }
