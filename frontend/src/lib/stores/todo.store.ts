@@ -1,9 +1,5 @@
 import { writable, derived } from 'svelte/store';
 import { apiService } from '../services/api.service';
-import {
-  listenToUserTodos,
-  stopListeningToUserTodos
-} from '../firebase/client';
 import type {
   TodoItem,
   TodoFilter,
@@ -46,7 +42,6 @@ function createTodoStore() {
   const { subscribe, set, update } = writable<TodoStoreState>(initialState);
   let syncTimer: any = null;
   let activeSyncUserId: string | null = null;
-  let unsubscribeRtdb: (() => void) | null = null;
 
   return {
     subscribe,
@@ -298,15 +293,11 @@ function createTodoStore() {
      * Attach Firebase Realtime Database synchronization.
      */
     startRealtimeSync: (userId: string): void => {
-      if (activeSyncUserId === userId && (unsubscribeRtdb || syncTimer)) {
+      if (activeSyncUserId === userId && syncTimer) {
         return;
       }
 
-      // Stop previous listeners/timers if switching users
-      if (unsubscribeRtdb) {
-        unsubscribeRtdb();
-        unsubscribeRtdb = null;
-      }
+      // Stop previous timer if switching users
       if (syncTimer) {
         clearInterval(syncTimer);
         syncTimer = null;
@@ -315,20 +306,18 @@ function createTodoStore() {
       activeSyncUserId = userId;
       update((s) => ({ ...s, isRealtimeActive: true }));
 
-      // Attach native Firebase Realtime Database listener
-      try {
-        unsubscribeRtdb = listenToUserTodos(userId, (todos) => {
+      // Immediate fetch on sync start
+      apiService.getTodos().then((res) => {
+        if (res.success && Array.isArray(res.data)) {
           update((s) => ({
             ...s,
-            todos: todos || [],
+            todos: res.data || s.todos,
             isRealtimeActive: true,
           }));
-        });
-      } catch (err) {
-        console.warn('[TodoStore] RTDB direct listener skipped or offline:', err);
-      }
+        }
+      }).catch(() => {});
 
-      // Periodic safety check to ensure sync
+      // Periodic synchronization check via Cloudflare Worker REST API every 5 seconds
       syncTimer = setInterval(async () => {
         try {
           const res = await apiService.getTodos();
@@ -342,23 +331,16 @@ function createTodoStore() {
         } catch {
           // Keep current state on network pause
         }
-      }, 15000);
+      }, 5000);
       if (syncTimer && typeof syncTimer.unref === 'function') {
         syncTimer.unref();
       }
     },
 
     /**
-     * Disconnect Firebase Realtime Database synchronization
+     * Disconnect real-time synchronization
      */
     stopRealtimeSync: (): void => {
-      if (unsubscribeRtdb) {
-        unsubscribeRtdb();
-        unsubscribeRtdb = null;
-      }
-      if (activeSyncUserId) {
-        stopListeningToUserTodos(activeSyncUserId);
-      }
       if (syncTimer) {
         clearInterval(syncTimer);
         syncTimer = null;
@@ -371,13 +353,6 @@ function createTodoStore() {
      * Reset store to initial state
      */
     reset: (): void => {
-      if (unsubscribeRtdb) {
-        unsubscribeRtdb();
-        unsubscribeRtdb = null;
-      }
-      if (activeSyncUserId) {
-        stopListeningToUserTodos(activeSyncUserId);
-      }
       if (syncTimer) {
         clearInterval(syncTimer);
         syncTimer = null;

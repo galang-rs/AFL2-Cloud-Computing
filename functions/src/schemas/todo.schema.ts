@@ -8,8 +8,8 @@ export const CreateTodoSchema = z.object({
     .max(200, 'Title cannot exceed 200 characters'),
   description: z.string().max(2000, 'Description cannot exceed 2000 characters').optional().default(''),
   completed: z.boolean().optional().default(false),
-  priority: z.enum(['low', 'medium', 'high'], {
-    invalid_type_error: "Priority must be 'low', 'medium', or 'high'"
+  priority: z.enum(['low', 'medium', 'high', 'urgent'], {
+    invalid_type_error: "Priority must be 'low', 'medium', 'high', or 'urgent'"
   }).optional().default('medium'),
   category: z.string().optional().default('general'),
   color: z.string().optional().default('amber'),
@@ -25,7 +25,7 @@ export const UpdateTodoSchema = z.object({
     .optional(),
   description: z.string().max(2000, 'Description cannot exceed 2000 characters').optional(),
   completed: z.boolean().optional(),
-  priority: z.enum(['low', 'medium', 'high']).optional(),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
   category: z.string().optional(),
   color: z.string().optional(),
   dueDate: z.string().nullable().optional()
@@ -42,7 +42,7 @@ export const QueryFilterSchema = z.object({
       if (val === 'false') return false;
       return undefined;
     }),
-  priority: z.enum(['low', 'medium', 'high']).optional(),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
   search: z.string().trim().optional(),
   sortBy: z.enum(['createdAt', 'dueDate', 'priority', 'title']).optional().default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('desc')

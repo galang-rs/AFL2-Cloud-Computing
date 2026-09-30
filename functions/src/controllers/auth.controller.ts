@@ -13,13 +13,23 @@ export class AuthController {
     this.customAuthService = authService;
   }
 
-  private getService(_c: Context<HonoEnv>): IAuthService {
+  private getService(c: Context<HonoEnv>): IAuthService {
     if (this.customAuthService) {
       return this.customAuthService;
     }
-    const userRepo = new UserFirebaseRepository();
-    const todoRepo = new TodoFirebaseRepository();
-    return new AuthService(userRepo, todoRepo);
+    const userRepo = new UserFirebaseRepository(
+      c.env?.FIREBASE_DATABASE_URL,
+      c.env?.FIREBASE_API_KEY
+    );
+    const todoRepo = new TodoFirebaseRepository(
+      c.env?.FIREBASE_DATABASE_URL
+    );
+    return new AuthService(
+      userRepo,
+      todoRepo,
+      c.env?.FIREBASE_API_KEY,
+      c.env?.JWT_SECRET
+    );
   }
 
   public register = async (c: Context<HonoEnv>): Promise<Response> => {
@@ -75,5 +85,34 @@ export class AuthController {
       },
       200
     );
+  };
+
+  public verifyStatus = async (c: Context<HonoEnv>): Promise<Response> => {
+    const body = await c.req.json().catch(() => ({}));
+    const email = body.email || '';
+    const fbIdToken = body.fbIdToken;
+
+    const service = this.getService(c);
+    const emailVerified = await service.checkEmailVerification(email, fbIdToken);
+
+    return c.json({
+      success: true,
+      data: { emailVerified }
+    });
+  };
+
+  public resendVerification = async (c: Context<HonoEnv>): Promise<Response> => {
+    const body = await c.req.json().catch(() => ({}));
+    const email = body.email || '';
+    const fbIdToken = body.fbIdToken;
+
+    const service = this.getService(c);
+    const result = await service.resendVerificationEmail(email, fbIdToken);
+
+    return c.json({
+      success: result.success,
+      data: { sent: result.success },
+      message: result.message
+    });
   };
 }

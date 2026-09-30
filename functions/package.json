@@ -5,10 +5,9 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "serve": "firebase emulators:start --only functions",
-    "shell": "firebase functions:shell",
-    "start": "npm run shell",
-    "deploy": "firebase deploy --only functions",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:firebase": "firebase deploy --only functions",
     "test": "tsc --noEmit && tsx --test src/tests/*.test.ts"
   },
   "dependencies": {

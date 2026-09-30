@@ -8,6 +8,10 @@ dist/
 frontend/dist/
 functions/dist/
 
+# Cloudflare Wrangler local caches & state
+.wrangler/
+functions/.wrangler/
+
 # Firebase local caches and logs
 .firebase/
 firebase-debug.log
@@ -20,13 +24,22 @@ firebase-debug.*.log
 test/
 *.zip
 
-# Environment secrets (DO NOT COMMIT CREDENTIALS)
+# Environment secrets and credentials (DO NOT COMMIT CREDENTIALS TO GIT)
 .env
 .env.*
 !.env.example
 frontend/.env
 frontend/.env.*
 !frontend/.env.example
+functions/.env
+functions/.env.*
+!functions/.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+functions/.dev.vars
+functions/.dev.vars.*
+!functions/.dev.vars.example
 
 # Operating System & Editor files
 .DS_Store

@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "deploy": "vite build && firebase deploy --only hosting",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test": "node --test tests/*.test.js"
+    "test": "node --env-file=.env --test tests/*.test.js"
   },
   "dependencies": {
     "firebase": "^11.0.2",

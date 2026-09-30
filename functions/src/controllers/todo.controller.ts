@@ -12,11 +12,11 @@ export class TodoController {
     this.customTodoService = todoService;
   }
 
-  private getService(_c: Context<HonoEnv>): ITodoService {
+  private getService(c: Context<HonoEnv>): ITodoService {
     if (this.customTodoService) {
       return this.customTodoService;
     }
-    const repository = new TodoFirebaseRepository();
+    const repository = new TodoFirebaseRepository(c.env?.FIREBASE_DATABASE_URL);
     return new TodoService(repository);
   }
 

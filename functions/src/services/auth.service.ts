@@ -5,6 +5,7 @@ import { RegisterDTO, LoginDTO } from '../schemas/auth.schema';
 import { IAuthService, AuthResult } from './auth.service.interface';
 import { AppError } from './todo.service';
 import { hashPassword, verifyPassword, signJwt } from '../utils/crypto.utils';
+import { getFirebaseApiKey } from '../config/firebase';
 
 export const DOSEN_DEFAULT_NAME = 'Elizabeth Nathania Wintanto';
 export const DOSEN_DEFAULT_EMAIL = 'dosen@ciputra.ac.id';
@@ -12,10 +13,21 @@ export const DOSEN_DEFAULT_EMAIL = 'dosen@ciputra.ac.id';
 export class AuthService implements IAuthService {
   private userRepository: IUserRepository;
   private todoRepository?: ITodoRepository;
+  private apiKey: string;
+  private jwtSecret?: string;
 
-  constructor(userRepository: IUserRepository, todoRepository?: ITodoRepository) {
+  constructor(
+    userRepository: IUserRepository,
+    todoRepository?: ITodoRepository,
+    apiKey?: string,
+    jwtSecret?: string
+  ) {
     this.userRepository = userRepository;
     this.todoRepository = todoRepository;
+    this.apiKey = getFirebaseApiKey(apiKey);
+    this.jwtSecret =
+      jwtSecret ||
+      (typeof process !== 'undefined' ? process.env?.JWT_SECRET : undefined);
   }
 
   private isDosen(email: string, displayName?: string): boolean {
@@ -42,7 +54,6 @@ export class AuthService implements IAuthService {
   public async resetAndSeedDosenDummyData(userId: string): Promise<void> {
     if (!this.todoRepository) return;
     try {
-      // Clear existing todos to reset to initial state
       if (this.todoRepository.deleteAll) {
         await this.todoRepository.deleteAll(userId);
       } else {
@@ -67,11 +78,11 @@ export class AuthService implements IAuthService {
         updatedAt: now - 3600000 * 2
       });
 
-      // 2. Migration to Firebase Native
+      // 2. Migration to Cloudflare Worker
       await this.todoRepository.create(userId, {
         userId,
         title: 'Migrasi Ekosistem Cloudflare ke Firebase Native',
-        description: 'Menggantikan seluruh backend Cloudflare Workers & D1 dengan Firebase Cloud Functions dan Realtime Database.',
+        description: 'Menghubungkan frontend full REST API ke Cloudflare Worker yang berkomunikasi langsung dengan Firebase Realtime Database.',
         completed: true,
         priority: 'urgent',
         category: 'work',
@@ -99,7 +110,7 @@ export class AuthService implements IAuthService {
       await this.todoRepository.create(userId, {
         userId,
         title: 'Sinkronisasi Realtime Multi-Klien Sticky Notes',
-        description: 'Menggunakan listener Firebase Realtime Database onValue untuk live updates instan tanpa jeda polling.',
+        description: 'Menggunakan REST API endpoint Cloudflare Worker dan live background polling untuk pembaruan instan.',
         completed: false,
         priority: 'medium',
         category: 'work',
@@ -139,6 +150,55 @@ export class AuthService implements IAuthService {
       ? DOSEN_DEFAULT_NAME
       : dto.displayName.trim();
 
+    // 1. Official Firebase Auth User Creation & send real verification email via Identity Toolkit REST
+    let fbIdToken: string | undefined;
+    if (this.apiKey) {
+      try {
+        const fbRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${this.apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: dto.email,
+            password: dto.password,
+            returnSecureToken: true
+          })
+        });
+        const fbData = (await fbRes.json()) as any;
+        if (fbData && fbData.idToken) {
+          fbIdToken = fbData.idToken;
+        } else if (fbData?.error?.message === 'EMAIL_EXISTS') {
+          const signInRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${this.apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: dto.email,
+              password: dto.password,
+              returnSecureToken: true
+            })
+          });
+          const signInData = (await signInRes.json()) as any;
+          if (signInData && signInData.idToken) {
+            fbIdToken = signInData.idToken;
+          }
+        }
+
+        // Send official Firebase email verification link to user's real inbox (only for students, dosen bypasses)
+        if (fbIdToken && role === 'student') {
+          await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${this.apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requestType: 'VERIFY_EMAIL',
+              idToken: fbIdToken
+            })
+          });
+          console.info(`[AuthService] Official Firebase verification email sent to: ${dto.email}`);
+        }
+      } catch (fbErr) {
+        console.warn('[AuthService] Firebase Auth create/verify notice:', fbErr);
+      }
+    }
+
     const passwordHash = await hashPassword(dto.password);
     const now = Date.now();
 
@@ -159,20 +219,28 @@ export class AuthService implements IAuthService {
       await this.resetAndSeedDosenDummyData(profile.uid);
     }
 
-    const token = await signJwt({
-      uid: profile.uid,
-      email: profile.email,
-      name: profile.displayName,
-      role: profile.role
-    });
+    const token = await signJwt(
+      {
+        uid: profile.uid,
+        email: profile.email,
+        name: profile.displayName,
+        role: profile.role
+      },
+      this.jwtSecret
+    );
 
-    return { user: profile, token };
+    return {
+      user: profile,
+      token,
+      fbIdToken,
+      emailVerified: role === 'dosen'
+    };
   }
 
   public async login(dto: LoginDTO): Promise<AuthResult> {
     let user = await this.userRepository.findByEmail(dto.email);
     if (!user) {
-      // Auto-provision demo dosen account if logging in with dosen demo credentials for smooth evaluation
+      // Auto-provision demo dosen account if logging in with dosen demo credentials
       if (this.isDosen(dto.email)) {
         return this.register({
           email: dto.email,
@@ -191,19 +259,61 @@ export class AuthService implements IAuthService {
     const userEntity = new UserEntity(user);
     const profile = userEntity.toProfile();
 
+    // Check Firebase Auth verification status via Identity Toolkit
+    let fbIdToken: string | undefined;
+    let emailVerified = profile.role === 'dosen' || this.isDosen(profile.email, profile.displayName);
+
+    if (this.apiKey && profile.role !== 'dosen') {
+      try {
+        const signInRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${this.apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: dto.email,
+            password: dto.password,
+            returnSecureToken: true
+          })
+        });
+        const signInData = (await signInRes.json()) as any;
+        if (signInData && signInData.idToken) {
+          fbIdToken = signInData.idToken;
+
+          const lookupRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${this.apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken: fbIdToken })
+          });
+          const lookupData = (await lookupRes.json()) as any;
+          if (lookupData?.users?.[0]?.emailVerified !== undefined) {
+            emailVerified = Boolean(lookupData.users[0].emailVerified);
+          }
+        }
+      } catch (fbErr) {
+        console.warn('[AuthService] Firebase Auth signIn/lookup notice:', fbErr);
+      }
+    }
+
     // STRICT BUSINESS RULE: For Dosen accounts, RESET & RESEED fresh dummy data on every login!
-    if (profile.role === 'dosen' || this.isDosen(profile.email, profile.displayName)) {
+    if (emailVerified && (profile.role === 'dosen' || this.isDosen(profile.email, profile.displayName))) {
       await this.resetAndSeedDosenDummyData(profile.uid);
     }
 
-    const token = await signJwt({
-      uid: profile.uid,
-      email: profile.email,
-      name: profile.displayName,
-      role: profile.role
-    });
+    const token = await signJwt(
+      {
+        uid: profile.uid,
+        email: profile.email,
+        name: profile.displayName,
+        role: profile.role
+      },
+      this.jwtSecret
+    );
 
-    return { user: profile, token };
+    return {
+      user: profile,
+      token,
+      fbIdToken,
+      emailVerified
+    };
   }
 
   public async getMe(uid: string): Promise<UserResponseProfile> {
@@ -217,5 +327,65 @@ export class AuthService implements IAuthService {
     }
 
     return new UserEntity(user).toProfile();
+  }
+
+  /**
+   * Check if user's real email has been verified via the link sent by Firebase
+   */
+  public async checkEmailVerification(email: string, fbIdToken?: string): Promise<boolean> {
+    if (this.isDosen(email)) return true;
+
+    if (this.apiKey && fbIdToken) {
+      try {
+        const lookupRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${this.apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: fbIdToken })
+        });
+        const lookupData = (await lookupRes.json()) as any;
+        if (lookupData?.users?.[0]?.emailVerified !== undefined) {
+          return Boolean(lookupData.users[0].emailVerified);
+        }
+      } catch (err) {
+        console.warn('[AuthService] checkEmailVerification error:', err);
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Resend official Firebase Email Verification link to user's inbox
+   */
+  public async resendVerificationEmail(email: string, fbIdToken?: string): Promise<{ success: boolean; message: string }> {
+    if (this.isDosen(email)) {
+      return { success: true, message: 'Akun Dosen tidak memerlukan verifikasi email.' };
+    }
+
+    if (this.apiKey && fbIdToken) {
+      try {
+        const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${this.apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requestType: 'VERIFY_EMAIL',
+            idToken: fbIdToken
+          })
+        });
+        const data = (await res.json()) as any;
+        if (res.ok) {
+          return { success: true, message: 'Email verifikasi baru telah dikirim langsung dari Google Firebase.' };
+        }
+        if (data?.error?.message === 'TOO_MANY_ATTEMPTS_TRY_LATER') {
+          return { success: true, message: 'Email verifikasi telah dikirim. Jika belum masuk, silakan tunggu 1 menit sebelum meminta kembali.' };
+        }
+        return { success: false, message: data?.error?.message || 'Gagal mengirim email verifikasi.' };
+      } catch (err: any) {
+        console.warn('[AuthService] resendVerificationEmail error:', err);
+        return { success: false, message: err.message || 'Gagal mengirim ulang email verifikasi.' };
+      }
+    }
+
+    return { success: false, message: 'Token otentikasi tidak ditemukan.' };
   }
 }

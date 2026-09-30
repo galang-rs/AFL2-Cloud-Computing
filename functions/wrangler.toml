@@ -1,0 +1,9 @@
+name = "afl2-cloud-computing-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-30"
+compatibility_flags = ["nodejs_compat"]
+
+# Do NOT commit secrets or API keys here.
+# For local development with wrangler, use `.dev.vars` (which is gitignored).
+# For production Cloudflare Workers deployment, use Cloudflare dashboard or `wrangler secret put <KEY>`.
+# See .dev.vars.example or .env.example for required variables.

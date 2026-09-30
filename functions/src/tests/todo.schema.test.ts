@@ -88,14 +88,14 @@ test('2. CreateTodoSchema - Title validation failures (empty, whitespace, missin
 
 test('3. CreateTodoSchema - Priority and completed validation', () => {
   // Valid priorities
-  for (const prio of ['low', 'medium', 'high'] as const) {
+  for (const prio of ['low', 'medium', 'high', 'urgent'] as const) {
     const res = CreateTodoSchema.parse({ title: 'Task', priority: prio });
     assert.equal(res.priority, prio);
   }
 
   // Invalid priority
   assert.throws(() => {
-    CreateTodoSchema.parse({ title: 'Task', priority: 'urgent' as any });
+    CreateTodoSchema.parse({ title: 'Task', priority: 'critical' as any });
   }, ZodError);
 
   assert.throws(() => {

@@ -1,31 +1,29 @@
-import { initializeApp, getApps, getApp, App } from 'firebase-admin/app';
-import { getDatabase, Database } from 'firebase-admin/database';
-import { getAuth, Auth } from 'firebase-admin/auth';
+/**
+ * Firebase Configuration Provider
+ * Strictly resolves configuration from runtime environment variables or Cloudflare Worker bindings.
+ * NO credentials, secrets, or project identifiers are hardcoded.
+ */
 
-export function initFirebaseAdmin(): App {
-  const apps = getApps();
-  if (apps.length > 0) {
-    return getApp();
-  }
-
-  const databaseURL =
-    process.env.FIREBASE_DATABASE_URL ||
-    'https://afl2-7e2a5-default-rtdb.firebaseio.com';
-
-  const projectId = process.env.FIREBASE_PROJECT_ID || 'afl2-7e2a5';
-
-  return initializeApp({
-    projectId,
-    databaseURL,
-  });
+export function getFirebaseDatabaseUrl(customUrl?: string): string {
+  const url =
+    customUrl ||
+    (typeof process !== 'undefined' ? process.env?.FIREBASE_DATABASE_URL : undefined) ||
+    '';
+  return url ? url.replace(/\/$/, '') : '';
 }
 
-export function getAdminDatabase(): Database {
-  const app = initFirebaseAdmin();
-  return getDatabase(app);
+export function getFirebaseApiKey(customKey?: string): string {
+  return (
+    customKey ||
+    (typeof process !== 'undefined' ? process.env?.FIREBASE_API_KEY : undefined) ||
+    ''
+  );
 }
 
-export function getAdminAuth(): Auth {
-  const app = initFirebaseAdmin();
-  return getAuth(app);
+export function getFirebaseProjectId(customId?: string): string {
+  return (
+    customId ||
+    (typeof process !== 'undefined' ? process.env?.FIREBASE_PROJECT_ID : undefined) ||
+    ''
+  );
 }

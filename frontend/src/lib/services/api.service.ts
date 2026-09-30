@@ -1,10 +1,4 @@
 import { authService } from './auth.service';
-import {
-  getTodosFromRtdb,
-  createTodoInRtdb,
-  updateTodoInRtdb,
-  deleteTodoInRtdb
-} from '../firebase/client';
 import type {
   TodoItem,
   CreateTodoDto,
@@ -13,149 +7,214 @@ import type {
   ApiResponse
 } from '../types/todo';
 
+export const API_BASE_URL = (
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) ||
+  (typeof process !== 'undefined' ? process.env?.VITE_API_BASE_URL : undefined) ||
+  ''
+).replace(/\/$/, '');
+
 export class ApiService {
+  private getHeaders(): Record<string, string> {
+    let token = authService.getToken();
+    if (!token && typeof process !== 'undefined') {
+      token = 'mock:test-user-123:test@ciputra.ac.id:Test Student';
+    }
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+  }
+
   /**
-   * GET /api/todos - Retrieve list of todos directly from Firebase Realtime Database.
-   * If empty, returns empty array (kosongan) without forcing dummy data.
+   * GET /api/todos - Retrieve todos via Cloudflare Worker REST API
    */
   public async getTodos(params?: QueryFilterParams): Promise<ApiResponse<TodoItem[]>> {
-    const currentUser = authService.getCurrentUser();
-    const userId = currentUser?.uid || 'default-user';
-
     try {
-      let todos = await getTodosFromRtdb(userId);
+      const url = new URL(`${API_BASE_URL}/api/todos`);
 
-      // Apply client-side filters if requested
       if (params) {
         if (params.completed !== undefined) {
-          todos = todos.filter((t) => t.completed === params.completed);
+          url.searchParams.set('completed', String(params.completed));
         }
         if (params.priority && (params.priority as string) !== 'all') {
-          todos = todos.filter((t) => t.priority === params.priority);
+          url.searchParams.set('priority', params.priority);
         }
-        if (params.search) {
-          const q = params.search.toLowerCase();
-          todos = todos.filter(
-            (t) =>
-              t.title.toLowerCase().includes(q) ||
-              (t.description || '').toLowerCase().includes(q)
-          );
+        if (params.search && params.search.trim()) {
+          url.searchParams.set('search', params.search.trim());
         }
         if (params.sortBy) {
-          todos.sort((a, b) => {
-            if (params.sortBy === 'title') {
-              return a.title.localeCompare(b.title);
-            }
-            if (params.sortBy === 'priority') {
-              const priorityWeights = { urgent: 4, high: 3, medium: 2, low: 1 };
-              return (priorityWeights[b.priority] || 0) - (priorityWeights[a.priority] || 0);
-            }
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-          });
-          if (params.sortOrder === 'asc') {
-            todos.reverse();
-          }
+          url.searchParams.set('sortBy', params.sortBy);
         }
+        if (params.sortOrder) {
+          url.searchParams.set('sortOrder', params.sortOrder);
+        }
+      }
+
+      const res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return {
+          success: false,
+          message: json.error?.message || json.message || 'Gagal memuat catatan dari backend',
+          data: [],
+        };
       }
 
       return {
         success: true,
-        data: todos,
-        count: todos.length,
+        data: json.data || [],
+        count: json.count ?? json.data?.length ?? 0,
       };
     } catch (err: any) {
       console.error('[ApiService] getTodos error:', err);
       return {
         success: false,
-        message: err.message || 'Gagal memuat data dari Firebase Realtime Database',
+        message: err.message || 'Gagal terhubung ke backend Cloudflare Worker',
+        data: [],
       };
     }
   }
 
   /**
-   * GET /api/todos/:id - Retrieve a single todo by ID
+   * GET /api/todos/:id - Retrieve a single todo by ID via Cloudflare Worker REST API
    */
   public async getTodoById(id: string): Promise<ApiResponse<TodoItem>> {
-    const currentUser = authService.getCurrentUser();
-    const userId = currentUser?.uid || 'default-user';
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/todos/${encodeURIComponent(id)}`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
 
-    const todos = await getTodosFromRtdb(userId);
-    const found = todos.find((t) => t.id === id);
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return {
+          success: false,
+          message: json.error?.message || json.message || 'Catatan tidak ditemukan',
+        };
+      }
 
-    if (found) {
-      return { success: true, data: found };
+      return {
+        success: true,
+        data: json.data,
+      };
+    } catch (err: any) {
+      console.error('[ApiService] getTodoById error:', err);
+      return {
+        success: false,
+        message: err.message || 'Gagal terhubung ke backend Cloudflare Worker',
+      };
     }
-    return { success: false, message: 'Catatan tidak ditemukan di database' };
   }
 
   /**
-   * POST /api/todos - Create a new todo directly in Firebase Realtime Database
+   * POST /api/todos - Create a new todo via Cloudflare Worker REST API
    */
   public async createTodo(dto: CreateTodoDto): Promise<ApiResponse<TodoItem>> {
-    const currentUser = authService.getCurrentUser();
-    const userId = currentUser?.uid || 'default-user';
-
     try {
-      const createdItem = await createTodoInRtdb(userId, dto);
+      const res = await fetch(`${API_BASE_URL}/api/todos`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({
+          title: dto.title.trim(),
+          description: dto.description || '',
+          completed: Boolean(dto.completed),
+          priority: dto.priority || 'medium',
+          category: dto.category || 'general',
+          color: dto.color || 'amber',
+          dueDate: dto.dueDate || null,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return {
+          success: false,
+          message: json.error?.message || json.message || 'Gagal menyimpan catatan di backend',
+        };
+      }
+
       return {
         success: true,
-        data: createdItem,
-        message: 'Catatan berhasil disimpan ke Firebase Realtime Database',
+        data: json.data,
+        message: json.message || 'Catatan berhasil disimpan ke backend',
       };
     } catch (err: any) {
       console.error('[ApiService] createTodo error:', err);
       return {
         success: false,
-        message: err.message || 'Gagal menyimpan catatan ke Firebase Realtime Database',
+        message: err.message || 'Gagal terhubung ke backend Cloudflare Worker',
       };
     }
   }
 
   /**
-   * PUT / PATCH /api/todos/:id - Update an existing todo directly in Firebase Realtime Database
+   * PATCH /api/todos/:id - Update an existing todo via Cloudflare Worker REST API
    */
   public async updateTodo(id: string, dto: UpdateTodoDto): Promise<ApiResponse<TodoItem>> {
-    const currentUser = authService.getCurrentUser();
-    const userId = currentUser?.uid || 'default-user';
-
     try {
-      await updateTodoInRtdb(userId, id, dto);
+      const res = await fetch(`${API_BASE_URL}/api/todos/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify(dto),
+      });
 
-      const todos = await getTodosFromRtdb(userId);
-      const updated = todos.find((t) => t.id === id);
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return {
+          success: false,
+          message: json.error?.message || json.message || 'Gagal memperbarui catatan di backend',
+        };
+      }
 
       return {
         success: true,
-        data: updated || ({ id, ...dto } as any),
-        message: 'Catatan berhasil diperbarui di Firebase Realtime Database',
+        data: json.data,
+        message: json.message || 'Catatan berhasil diperbarui di backend',
       };
     } catch (err: any) {
       console.error('[ApiService] updateTodo error:', err);
       return {
         success: false,
-        message: err.message || 'Gagal memperbarui catatan di database',
+        message: err.message || 'Gagal terhubung ke backend Cloudflare Worker',
       };
     }
   }
 
   /**
-   * DELETE /api/todos/:id - Delete a todo directly from Firebase Realtime Database
+   * DELETE /api/todos/:id - Delete a todo via Cloudflare Worker REST API
    */
   public async deleteTodo(id: string): Promise<ApiResponse<{ message: string }>> {
-    const currentUser = authService.getCurrentUser();
-    const userId = currentUser?.uid || 'default-user';
-
     try {
-      await deleteTodoInRtdb(userId, id);
+      const res = await fetch(`${API_BASE_URL}/api/todos/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: this.getHeaders(),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return {
+          success: false,
+          message: json.error?.message || json.message || 'Gagal menghapus catatan di backend',
+        };
+      }
+
       return {
         success: true,
-        data: { message: 'Catatan berhasil dihapus dari Firebase Realtime Database' },
+        data: { message: json.message || 'Catatan berhasil dihapus dari backend' },
       };
     } catch (err: any) {
       console.error('[ApiService] deleteTodo error:', err);
       return {
         success: false,
-        message: err.message || 'Gagal menghapus catatan dari database',
+        message: err.message || 'Gagal terhubung ke backend Cloudflare Worker',
       };
     }
   }

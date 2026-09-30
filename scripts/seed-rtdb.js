@@ -1,5 +1,8 @@
-// Seed script for Firebase Realtime Database with REAL student & evaluation data
-const RTDB_BASE = 'https://afl2-7e2a5-default-rtdb.asia-southeast1.firebasedatabase.app';
+const RTDB_BASE = (process.env.FIREBASE_DATABASE_URL || '').replace(/\/$/, '');
+if (!RTDB_BASE) {
+  console.error('[Error] FIREBASE_DATABASE_URL environment variable is required.');
+  process.exit(1);
+}
 
 function sanitizeEmail(email) {
   return Buffer.from(email.toLowerCase().trim()).toString('base64url');

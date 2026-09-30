@@ -16,9 +16,7 @@ import {
 } from 'firebase/database';
 import type { TodoItem, CreateTodoDto, UpdateTodoDto } from '../types/todo';
 
-export const RTDB_BASE_URL =
-  import.meta.env?.VITE_FIREBASE_DATABASE_URL ||
-  'https://afl2-7e2a5-default-rtdb.asia-southeast1.firebasedatabase.app';
+export const RTDB_BASE_URL = (import.meta.env?.VITE_FIREBASE_DATABASE_URL || '').replace(/\/$/, '');
 
 export const firebaseConfig = {
   apiKey: import.meta.env?.VITE_FIREBASE_API_KEY || '',

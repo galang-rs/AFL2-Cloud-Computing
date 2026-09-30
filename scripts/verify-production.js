@@ -1,5 +1,9 @@
-const RTDB_BASE = 'https://afl2-7e2a5-default-rtdb.asia-southeast1.firebasedatabase.app';
-const HOSTING_URL = 'https://afl2-7e2a5.web.app';
+const RTDB_BASE = (process.env.FIREBASE_DATABASE_URL || '').replace(/\/$/, '');
+const HOSTING_URL = (process.env.HOSTING_URL || process.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+if (!RTDB_BASE || !HOSTING_URL) {
+  console.error('[Error] FIREBASE_DATABASE_URL and HOSTING_URL environment variables are required.');
+  process.exit(1);
+}
 
 function emailToKey(email) {
   return Buffer.from(email.toLowerCase().trim()).toString('base64url');

@@ -1,4 +1,13 @@
-const DEFAULT_JWT_SECRET = 'afl2-firebase-secure-jwt-secret-key-2026';
+function resolveJwtSecret(secret?: string): string {
+  const resolved =
+    secret ||
+    (typeof process !== 'undefined' ? process.env?.JWT_SECRET : undefined);
+  if (resolved) return resolved;
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') {
+    return 'test-jwt-secret-for-testing-only';
+  }
+  throw new Error('JWT_SECRET environment variable is missing.');
+}
 
 function bufferToHex(buffer: ArrayBuffer): string {
   return Array.from(new Uint8Array(buffer))
@@ -105,7 +114,8 @@ export async function verifyPassword(password: string, storedHash: string): Prom
 /**
  * Sign JWT token using HS256 with Web Crypto HMAC.
  */
-export async function signJwt(payload: Record<string, any>, secret: string = DEFAULT_JWT_SECRET): Promise<string> {
+export async function signJwt(payload: Record<string, any>, secret?: string): Promise<string> {
+  const jwtSecret = resolveJwtSecret(secret);
   const header = { alg: 'HS256', typ: 'JWT' };
   const encodedHeader = base64UrlEncode(JSON.stringify(header));
   const encodedPayload = base64UrlEncode(
@@ -121,7 +131,7 @@ export async function signJwt(payload: Record<string, any>, secret: string = DEF
 
   const key = await crypto.subtle.importKey(
     'raw',
-    enc.encode(secret),
+    enc.encode(jwtSecret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign']
@@ -136,7 +146,14 @@ export async function signJwt(payload: Record<string, any>, secret: string = DEF
 /**
  * Verify and decode JWT token.
  */
-export async function verifyJwt(token: string, secret: string = DEFAULT_JWT_SECRET): Promise<any | null> {
+export async function verifyJwt(token: string, secret?: string): Promise<any | null> {
+  let jwtSecret: string;
+  try {
+    jwtSecret = resolveJwtSecret(secret);
+  } catch {
+    return null;
+  }
+
   const parts = token.split('.');
   if (parts.length !== 3) {
     return null;
@@ -149,7 +166,7 @@ export async function verifyJwt(token: string, secret: string = DEFAULT_JWT_SECR
   try {
     const key = await crypto.subtle.importKey(
       'raw',
-      enc.encode(secret),
+      enc.encode(jwtSecret),
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['verify']

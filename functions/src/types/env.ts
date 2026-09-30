@@ -8,6 +8,9 @@ export interface AuthenticatedUser {
 export type EnvBindings = {
   ALLOW_DEV_AUTH_BYPASS?: string;
   JWT_SECRET?: string;
+  FIREBASE_DATABASE_URL?: string;
+  FIREBASE_API_KEY?: string;
+  FIREBASE_PROJECT_ID?: string;
   FIREBASE_DATABASE_EMULATOR_HOST?: string;
 };
 
