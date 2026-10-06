@@ -13,6 +13,7 @@ export interface AuthStoreState {
   isAuthenticated: boolean;
   error: string | null;
   isEmailVerificationPending: boolean;
+  isVerificationSuccess: boolean;
   pendingVerificationEmail: string | null;
   resendCooldown: number;
   verificationMessage: string | null;
@@ -25,6 +26,7 @@ const initialState: AuthStoreState = {
   isAuthenticated: false,
   error: null,
   isEmailVerificationPending: false,
+  isVerificationSuccess: false,
   pendingVerificationEmail: null,
   resendCooldown: 0,
   verificationMessage: null,
@@ -176,11 +178,11 @@ function createAuthStore() {
           if (cooldownInterval) clearInterval(cooldownInterval);
 
           const current = authService.getCurrentUser();
+          // Don't set isAuthenticated yet — show success screen first
           update((state) => ({
             ...state,
-            isEmailVerificationPending: false,
-            pendingVerificationEmail: null,
-            isAuthenticated: true,
+            isEmailVerificationPending: true,
+            isVerificationSuccess: true,
             currentUser: current,
             verificationMessage: 'Email berhasil diverifikasi! Selamat datang.',
             error: null,
@@ -280,12 +282,12 @@ function createAuthStore() {
           if (cooldownInterval) clearInterval(cooldownInterval);
 
           const current = authService.getCurrentUser();
+          // Don't set isAuthenticated yet — show success screen first
           update((state) => ({
             ...state,
             isLoading: false,
-            isEmailVerificationPending: false,
-            pendingVerificationEmail: null,
-            isAuthenticated: true,
+            isEmailVerificationPending: true,
+            isVerificationSuccess: true,
             currentUser: current,
             verificationMessage: 'Email berhasil diverifikasi!',
             error: null,
@@ -349,6 +351,7 @@ function createAuthStore() {
       update((state) => ({
         ...state,
         isEmailVerificationPending: false,
+        isVerificationSuccess: false,
         pendingVerificationEmail: null,
         resendCooldown: 0,
         verificationMessage: null,
@@ -431,6 +434,22 @@ function createAuthStore() {
     },
 
     /**
+     * After verification success screen, proceed to dashboard
+     */
+    proceedToDashboard: (): void => {
+      update((state) => ({
+        ...state,
+        isEmailVerificationPending: false,
+        isVerificationSuccess: false,
+        pendingVerificationEmail: null,
+        isAuthenticated: true,
+        verificationMessage: null,
+        error: null,
+        pendingFormData: null,
+      }));
+    },
+
+    /**
      * Sign out current user
      */
     signOut: async (): Promise<void> => {
@@ -450,6 +469,7 @@ function createAuthStore() {
           currentUser: null,
           isAuthenticated: false,
           isEmailVerificationPending: false,
+          isVerificationSuccess: false,
           pendingVerificationEmail: null,
           isLoading: false,
           error: null,
@@ -504,6 +524,11 @@ export const authError = derived(
 export const isEmailVerificationPending = derived(
   authStore,
   ($auth) => $auth.isEmailVerificationPending
+);
+
+export const isVerificationSuccess = derived(
+  authStore,
+  ($auth) => $auth.isVerificationSuccess
 );
 
 export const pendingVerificationEmail = derived(
